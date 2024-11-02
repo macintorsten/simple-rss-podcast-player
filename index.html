@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Podcast Player</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f7f9fc;
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+      color: #4CAF50;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      color: #4CAF50;
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }
+
+    button.button {
+      padding: 10px 20px;
+      color: white;
+      background: linear-gradient(90deg, #4CAF50, #66bb6a);
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 5px;
+      font-size: 1em;
+      transition: background 0.3s;
+      /* Smooth transition */
+    }
+
+    button.button:hover {
+      background: linear-gradient(90deg, #45a049, #5cbf4a);
+    }
+
+    ol {
+      padding-left: 20px;
+      font-size: 1.1em;
+      margin-bottom: 20px;
+    }
+
+    li {
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+
+    .podcast-item.playing {
+      background-color: #ffffff;
+      border-left: 5px solid #4CAF50;
+    }
+
+    #drop-zone {
+      border: 2px dashed #4CAF50;
+      padding: 30px;
+      text-align: center;
+      color: #4CAF50;
+      border-radius: 10px;
+      margin-top: 20px;
+      cursor: pointer;
+      font-size: 1.1em;
+      background-color: #fff;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    #drop-zone.dragover {
+      background-color: #f0f0f0;
+    }
+
+    #podcast-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+
+    .podcast-item {
+      background-color: #ffffff;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      transition: transform 0.2s;
+    }
+
+    .podcast-item:hover {
+      transform: translateY(-3px);
+    }
+
+    .podcast-item img {
+      cursor: pointer;
+      width: 80px;
+      height: 80px;
+      border-radius: 5px;
+    }
+
+    .columns-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .image-column {
+      flex: 0 0 80px;
+    }
+
+    .content-column {
+      flex: 1;
+      padding-left: 10px;
+    }
+
+    .podcast-title {
+      cursor: pointer;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .podcast-description {
+      margin-top: 5px;
+      font-size: 0.9em;
+      color: #666;
+    }
+
+    .podcast-date {
+      margin-top: 5px;
+      font-size: 0.8em;
+      color: #888;
+    }
+
+    .play-button {
+      cursor: pointer;
+      font-size: 3.5em;
+      color: #4CAF50;
+      margin-right: 10px;
+    }
+
+    .last-fetched {
+      font-size: 0.9em;
+      color: #888;
+      margin-top: 10px;
+    }
+
+    .audio-player-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 10px;
+      padding: 0;
+      width: 100%;
+    }
+
+
+    .audio-player-container audio {
+      width: 100%;
+      border: none;
+      background: none;
+    }
+
+    .columns-container {
+      display: flex;
+      margin-bottom: 10px;
+    }
+
+    .image-column {
+      flex: 0 0 80px;
+    }
+
+    .content-column {
+      flex: 1;
+      padding-left: 10px;
+    }
+
+    .audio-controls {
+      margin-top: 10px;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Podcast Player</h1>
+  <ol>
+    <li>Enter the RSS feed URL and click "Download RSS" to download the RSS file.</li>
+    <input type="text" id="rss-url" placeholder="Enter RSS Feed URL" style="width: 100%; padding: 8px;">
+    <div class="last-fetched" id="last-fetched"></div>
+
+    <button class="button" onclick="downloadRSS()">Download RSS</button> <button class="button"
+      onclick="clearStorage()">Clear Stored RSS</button>
+
+    <li>Upload the downloaded RSS file by clicking the area below or dragging and dropping it.</li>
+    <div id="drop-zone" ondrop="handleDrop(event)" ondragover="handleDragOver(event)"
+      ondragleave="handleDragLeave(event)">
+      Drag & Drop RSS file here or click to select
+    </div>
+    <input type="file" id="rss-file" accept=".xml, .rss" onchange="handleFileUpload(event)" style="display: none;">
+
+    <li>Select a podcast episode to play from the list below.</li>
+  </ol>
+
+
+
+  <h2 id="channel-title">Channel Title</h2>
+  <p id="channel-description">Channel Description</p>
+  <div id="podcast-list"></div>
+
+  <script>
+    let currentlyPlayingItem = null;
+    function playPodcast(url, item) {
+      const audioPlayer = document.getElementById("audio-player") || document.createElement('audio');
+      audioPlayer.src = url;
+      audioPlayer.controls = true;
+
+      // Reset the previously playing item
+      if (currentlyPlayingItem) {
+        currentlyPlayingItem.classList.remove('playing');
+
+        // Find and remove the existing audio player if it exists
+        const existingPlayerContainer = currentlyPlayingItem.querySelector('.audio-player-container');
+        if (existingPlayerContainer) {
+          existingPlayerContainer.remove();
+        }
+      }
+
+      // Set the new currently playing item
+      currentlyPlayingItem = item;
+      currentlyPlayingItem.classList.add('playing');
+
+      // Create a new audio player container and insert it
+      const playerContainer = document.createElement('div');
+      playerContainer.className = 'audio-player-container';
+      playerContainer.appendChild(audioPlayer);
+
+      currentlyPlayingItem.appendChild(playerContainer);
+      audioPlayer.play();
+    }
+    function downloadRSS() {
+      const url = document.getElementById("rss-url").value;
+      if (!url) {
+        alert("Please enter a valid URL.");
+        return;
+      }
+
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "";
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+    }
+
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (file) readFile(file);
+    }
+
+    function handleDrop(event) {
+      event.preventDefault();
+      const file = event.dataTransfer.files[0];
+      if (file) readFile(file);
+      event.target.classList.remove("dragover");
+    }
+
+    function handleDragOver(event) {
+      event.preventDefault();
+      event.target.classList.add("dragover");
+    }
+
+    function handleDragLeave(event) {
+      event.target.classList.remove("dragover");
+    }
+
+    function readFile(file) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const text = e.target.result;
+        parseRSS(text);
+        const lastFetched = new Date().toLocaleString();
+        localStorage.setItem('lastFetched', lastFetched);
+        document.getElementById("last-fetched").textContent = `Last fetched: ${lastFetched}`;
+        localStorage.setItem('rssContent', text);
+      };
+      reader.readAsText(file);
+    }
+
+
+    function parseRSS(xmlText) {
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(xmlText, "text/xml");
+      const items = xml.querySelectorAll("item");
+      const channelTitle = xml.querySelector("channel > title")?.textContent || "Untitled Channel";
+      const channelDescription = xml.querySelector("channel > description")?.textContent || "No description available";
+      const channelImageUrl = xml.querySelector("channel > image > url")?.textContent || '';
+
+      const podcastList = document.getElementById("podcast-list");
+      podcastList.innerHTML = "";
+
+      items.forEach((item) => {
+        const title = item.querySelector("title")?.textContent || "Untitled";
+        const audioUrl = item.querySelector("enclosure")?.getAttribute("url");
+
+        let tmpDescription = document.createElement('div');
+        tmpDescription.innerHTML = item.querySelector("description")?.textContent || "No description available";
+        const description = tmpDescription.textContent || tmpDescription.innerText || "";
+
+        const pubDate = item.querySelector("pubDate")?.textContent || "Unknown date";
+        const itemImageUrl = item.querySelector("itunes\\:image")?.getAttribute("href") || '';
+
+        if (audioUrl) {
+          const podcastItem = document.createElement("div");
+          podcastItem.className = "podcast-item";
+
+          // Create a container for the two-column layout
+          const columnsContainer = document.createElement("div");
+          columnsContainer.className = "columns-container";
+
+          const imgColumn = document.createElement("div");
+          imgColumn.className = "image-column";
+          const img = document.createElement("img");
+          img.src = itemImageUrl || channelImageUrl || "https://via.placeholder.com/80";
+          imgColumn.appendChild(img);
+
+          const contentColumn = document.createElement("div");
+          contentColumn.className = "content-column";
+
+          const titleEl = document.createElement("div");
+          titleEl.className = "podcast-title";
+          titleEl.textContent = title;
+          contentColumn.appendChild(titleEl);
+
+          const descriptionEl = document.createElement("div");
+          descriptionEl.className = "podcast-description";
+          descriptionEl.textContent = description;
+          contentColumn.appendChild(descriptionEl);
+
+          const dateEl = document.createElement("div");
+          dateEl.className = "podcast-date";
+          dateEl.textContent = `Published: ${new Date(pubDate).toLocaleDateString()}`;
+          contentColumn.appendChild(dateEl);
+
+          // Append both columns to the columns container
+          columnsContainer.appendChild(imgColumn);
+          columnsContainer.appendChild(contentColumn);
+          const speakerColumn = document.createElement("div");
+          speakerColumn.textContent = "🔊";
+          speakerColumn.className = "play-button"
+          columnsContainer.appendChild(speakerColumn);
+
+          // Append columns container to the podcast item
+          podcastItem.appendChild(columnsContainer);
+          podcastItem.onclick = () => playPodcast(audioUrl, podcastItem);
+
+          // Create a div for the audio controls, initially hidden
+          const audioControlsDiv = document.createElement("div");
+          audioControlsDiv.className = "audio-controls";
+          audioControlsDiv.style.display = "none";
+          podcastItem.appendChild(audioControlsDiv);
+
+          // Update the audio controls only if it's currently playing
+          podcastItem.audioControlsDiv = audioControlsDiv;
+
+          podcastList.appendChild(podcastItem);
+
+          // Function to update audio controls display based on current playing status
+          function updateAudioControls() {
+            if (podcastItem === currentlyPlayingItem) {
+              audioControlsDiv.style.display = "block";
+              const audioPlayer = document.createElement('audio');
+              audioPlayer.src = audioUrl;
+              audioPlayer.controls = true;
+              audioControlsDiv.innerHTML = "";
+              audioControlsDiv.appendChild(audioPlayer);
+            } else {
+              audioControlsDiv.style.display = "none";
+            }
+          }
+
+          // Call this function whenever a podcast item is played
+          podcastItem.updateAudioControls = updateAudioControls;
+        }
+      });
+
+      // Store the fetched RSS feed and last fetched time in localStorage
+      lastFetched = localStorage.getItem('lastFetched')
+      document.getElementById("last-fetched").textContent = `Last fetched: ${lastFetched}`;
+    }
+
+
+    currentlyPlayingItem = null; // Track the currently playing item
+
+
+
+    document.getElementById("rss-url").addEventListener("input", function () {
+      const inputValue = this.value;
+      // Update the location hash without refreshing the page
+      window.location.hash = encodeURIComponent(inputValue);
+    });
+
+    // Load the last fetched feed from localStorage on page load
+    window.onload = function () {
+      const storedRSS = localStorage.getItem('rssContent');
+      // Set the RSS URL from the hash if available
+      const urlFromHash = window.location.hash.substring(1);
+      if (urlFromHash) {
+        document.getElementById("rss-url").value = decodeURIComponent(urlFromHash);
+      }
+
+      if (storedRSS) {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(storedRSS, "text/xml");
+
+        // Display the channel title and description if available
+        const channelTitle = xml.querySelector("channel > title")?.textContent || "No Channel Title";
+        const channelDescription = xml.querySelector("channel > description")?.textContent || "No Channel Description";
+        document.getElementById("channel-title").textContent = channelTitle;
+        document.getElementById("channel-description").textContent = channelDescription;
+
+        parseRSS(storedRSS);
+      }
+    };
+
+    function clearStorage() {
+      localStorage.removeItem('rssContent');
+      localStorage.removeItem('lastFetched');
+      document.getElementById("channel-title").textContent = "Channel Title";
+      document.getElementById("channel-description").textContent = "Channel Description";
+      document.getElementById("last-fetched").textContent = "Last fetched: Never";
+      document.getElementById("podcast-list").innerHTML = "";
+    }
+  </script>
+</body>
+
+</html>
